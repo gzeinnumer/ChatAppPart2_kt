@@ -1,7 +1,9 @@
 package com.gzeinnumer.chatapppart2_kt
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
@@ -14,6 +16,10 @@ import com.gzeinnumer.chatapppart2_kt.adapter.MessageAdapter
 import com.gzeinnumer.chatapppart2_kt.databinding.ActivityMessageBinding
 import com.gzeinnumer.chatapppart2_kt.model.Chat
 import com.gzeinnumer.chatapppart2_kt.model.User
+import com.gzeinnumer.chatapppart2_kt.notification.*
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 import java.util.*
 
 //todo 30 part 6 start
@@ -23,6 +29,7 @@ class MessageActivity : AppCompatActivity() {
     lateinit var reference: DatabaseReference
     lateinit var binding: ActivityMessageBinding
     lateinit var userId: String
+    var notify = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,11 +76,16 @@ class MessageActivity : AppCompatActivity() {
 
         //todo 68 part 14 start
         seenMessage(userId)
+
+        //todo 85
+        initFCM()
     }
     //todo 37
     private fun initSentMsg() {
         binding.btnSent.setOnClickListener {
-            val msg: String = binding.msg.getText().toString()
+            notify = true
+            Log.d("MyZein", "1.");
+            val msg: String = binding.msg.text.toString()
             if (msg.isNotEmpty()) {
                 sendMessage(firebaseUser.uid, userId, msg)
             } else {
@@ -93,7 +105,7 @@ class MessageActivity : AppCompatActivity() {
         receiver: String,
         message: String
     ) {
-        val reference = FirebaseDatabase.getInstance().reference
+        var reference = FirebaseDatabase.getInstance().reference
         val hashMap = mapOf("sender" to sender, "receiver" to receiver, "message" to message, "isseen" to false)
         reference.child("Chats").push().setValue(hashMap)
 
@@ -124,6 +136,22 @@ class MessageActivity : AppCompatActivity() {
             override fun onCancelled(databaseError: DatabaseError) {}
         })
         //end todo 72
+
+        //todo 86
+        val msg: String = message
+        reference = FirebaseDatabase.getInstance().getReference("Users").child(firebaseUser.uid)
+        reference.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+                val user = dataSnapshot.getValue(User::class.java)
+                Log.d("MyZein", "1.$notify")
+                if (notify) {
+                    sendNotification(receiver, user?.username!!, msg)
+                }
+                notify = false
+            }
+
+            override fun onCancelled(databaseError: DatabaseError) {}
+        })
     }
 
     //todo 45
@@ -195,6 +223,9 @@ class MessageActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         status("online")
+        //todo 92
+        currentUser(userId)
+        //end todo 92
     }
 
     //todo 71
@@ -202,5 +233,80 @@ class MessageActivity : AppCompatActivity() {
         super.onPause()
         seenListener?.let { reference.removeEventListener(it) }
         status("offline")
+        //todo 93
+        currentUser("none")
+        //end todo 93
+    }
+
+    //todo 85
+    var apiService: APIService? = null
+    fun initFCM() {
+        apiService = Client.getCLient("https://fcm.googleapis.com/")?.create(APIService::class.java)
+    }
+
+    //todo 87
+    private fun sendNotification(
+        receiver: String,
+        username: String,
+        msg: String
+    ) {
+        Log.d("MyZein", "2.")
+
+        val tokens = FirebaseDatabase.getInstance().getReference("Tokens")
+        val query = tokens.orderByKey().equalTo(receiver)
+        query.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+                Log.d("MyZein", "3.")
+
+                for (snapshot in dataSnapshot.children) {
+                    val token: Token? = snapshot.getValue(Token::class.java)
+                    Log.d("MyZein", "4.")
+
+                    val data = Data(
+                        firebaseUser.uid,
+                        R.mipmap.ic_launcher,
+                        "$username : $msg",
+                        "New Message",
+                        userId
+                    )
+                    val sender = Sender(data, token?.token)
+                    apiService!!.sendNotification(sender)
+                        ?.enqueue(object : Callback<MyResponse?> {
+                            override fun onResponse(
+                                call: Call<MyResponse?>?,
+                                response: Response<MyResponse?>?
+                            ) {
+                                Log.d("MyZein", response?.code().toString())
+                                if (response?.code() == 200) {
+                                    if (response.body()?.success != 1) {
+                                        Toast.makeText(
+                                            this@MessageActivity,
+                                            "Failed",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                            }
+
+                            override fun onFailure(
+                                call: Call<MyResponse?>?,
+                                t: Throwable
+                            ) {
+                                Log.d("MyZein", "5.")
+                            }
+                        })
+                }
+            }
+
+            override fun onCancelled(databaseError: DatabaseError) {}
+        })
+    }
+
+    //todo 91 part 20 start
+    private fun currentUser(userId: String) {
+        val editor =
+            getSharedPreferences("PREFS", Context.MODE_PRIVATE).edit()
+        editor.putString("currentUser", userId)
+        editor.apply()
     }
 }

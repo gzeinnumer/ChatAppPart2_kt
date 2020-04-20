@@ -9,10 +9,12 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.database.*
+import com.google.firebase.iid.FirebaseInstanceId
 import com.gzeinnumer.chatapppart2_kt.adapter.UserAdapter
 import com.gzeinnumer.chatapppart2_kt.databinding.FragmentChatsBinding
 import com.gzeinnumer.chatapppart2_kt.model.ChatList
 import com.gzeinnumer.chatapppart2_kt.model.User
+import com.gzeinnumer.chatapppart2_kt.notification.Token
 
 /**
  * A simple [Fragment] subclass.
@@ -39,6 +41,9 @@ class ChatsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         //todo 49
         readMessageNew()
+
+        //todo 81
+        updateToken(FirebaseInstanceId.getInstance().token)
     }
     //todo 50
     private fun readMessageNew() {
@@ -82,4 +87,9 @@ class ChatsFragment : Fragment() {
         })
     }
 
+    //todo 82
+    fun updateToken(token: String?) {
+        val reference = FirebaseDatabase.getInstance().getReference("Tokens")
+        reference.child(firebaseUser.uid).setValue(Token(token))
+    }
 }

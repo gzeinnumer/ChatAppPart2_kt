@@ -16,8 +16,8 @@ import com.gzeinnumer.chatapppart2_kt.databinding.ActivityMainBinding
 import com.gzeinnumer.chatapppart2_kt.fragment.ChatsFragment
 import com.gzeinnumer.chatapppart2_kt.fragment.ProfileFragment
 import com.gzeinnumer.chatapppart2_kt.fragment.UsersFragment
+import com.gzeinnumer.chatapppart2_kt.model.Chat
 import com.gzeinnumer.chatapppart2_kt.model.User
-import java.util.*
 
 class MainActivity : AppCompatActivity() {
     //todo 16
@@ -81,15 +81,33 @@ class MainActivity : AppCompatActivity() {
 
     //todo 23
     private fun initPager() {
-        val viewPagerAdapter = ViewPagerAdapter(
-            supportFragmentManager,
-            FragmentPagerAdapter.BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT
-        )
-        viewPagerAdapter.addFragment(ChatsFragment(), "Chats")
-        viewPagerAdapter.addFragment(UsersFragment(), "Users")
-        viewPagerAdapter.addFragment(ProfileFragment(), "Profile")
-        binding.viewPager.adapter = viewPagerAdapter
-        binding.tabLayout.setupWithViewPager(binding.viewPager)
+        reference = FirebaseDatabase.getInstance().getReference("Chats")
+        reference.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+                var unRead = 0
+                for (snapshot in dataSnapshot.children) {
+                    val chat: Chat? = snapshot.getValue(Chat::class.java)
+                    if (chat?.receiver.equals(firebaseUser.uid) && chat?.isseen==false) {
+                        unRead++
+                    }
+                }
+                val viewPagerAdapter = ViewPagerAdapter(
+                    supportFragmentManager,
+                    FragmentPagerAdapter.BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT
+                )
+                if (unRead == 0) {
+                    viewPagerAdapter.addFragment(ChatsFragment(), "Chats")
+                } else {
+                    viewPagerAdapter.addFragment(ChatsFragment(), "($unRead)Chats")
+                }
+                viewPagerAdapter.addFragment(UsersFragment(), "Users")
+                viewPagerAdapter.addFragment(ProfileFragment(), "Profile")
+                binding.viewPager.adapter = viewPagerAdapter
+                binding.tabLayout.setupWithViewPager(binding.viewPager)
+            }
+
+            override fun onCancelled(databaseError: DatabaseError) {}
+        })
     }
 
 
